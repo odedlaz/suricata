@@ -38,10 +38,31 @@
 /** Single XFF IP maximum length (default value based on IPv6 address length) */
 #define XFF_MAXLEN 46
 
+#define FORWARDED_HEADER_REGEX "^by=([^\\s]+);for=([^\\s]+);host=([^\\s]+);proto=([^\\s]+)$"
+
+/** Single IP maximum length (default value based on IPv6 address length) */
+#define FORWARDED_BY_MAXLEN 46
+/** Single IP maximum length (default value based on IPv6 address length) */
+#define FORWARDED_FOR_MAXLEN 46
+/** Single IP maximum length (default value based on IPv6 address length) */
+#define FORWARDED_HOST_MAXLEN 46
+/** Single proto maximum length */
+#define FORWARDED_PROTO_MAXLEN 10
+
 typedef struct HttpXFFCfg_ {
     uint8_t flags; /**< XFF operation mode and deployment */
     const char *header; /**< XFF header name */
 } HttpXFFCfg;
+
+typedef struct HttpForwardedCfg_ {
+    uint8_t flags; /**< XFF operation mode and deployment */
+    const char *header; /**< XFF header name */
+    char *forwarded_by; /**< XFF header name */
+    char *forwarded_for; /**< XFF header name */
+    char *host; /**< XFF header name */
+    char *proto; /**< XFF header name */
+} HttpForwardedCfg;
+
 
 void HttpXFFGetCfg(ConfNode *conf, HttpXFFCfg *result);
 

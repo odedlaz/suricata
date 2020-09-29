@@ -104,6 +104,70 @@ static int ParseXFFString(char *input, char *output, int output_size)
     return 0;
 }
 
+/** \internal
+ *  \brief parse XFF string
+ *  \param input input string, might be modified
+ *  \param output output buffer
+ *  \param output_size size of output buffer
+ *  \retval bool 1 ok, 0 fail
+ */
+static int ParseForwardedHeaderString(char *input, HttpForwardedCfg *output, int output_size)
+{
+    static pcre *forwarded_regex;
+    static pcre_extra *forwarded_regex_study;
+    const char * errptr;
+    int erroffset;
+#define MAX_SUBSTRINGS 3 * 6
+    int ov[MAX_SUBSTRINGS];
+    int ret;
+    const char **list;
+
+    forwarded_regex = pcre_compile(FORWARDED_HEADER_REGEX, 0, &errptr, &erroffset, NULL);
+    if (forwarded_regex == NULL) {
+        SCLogError(SC_ERR_PCRE_COMPILE, "pcre compile of \"%s\" failed at offset %" PRId32 ": %s",
+                   FORWARDED_HEADER_REGEX, erroffset, errptr);
+        goto error;
+    }
+
+    forwarded_regex_study = pcre_study(forwarded_regex, 0, &errptr);
+    if (errptr != NULL) {
+        SCLogError(SC_ERR_PCRE_STUDY, "pcre study failed: %s", errptr);
+        goto error;
+    }
+
+    ret = pcre_exec(forwarded_regex, forwarded_regex_study, input,
+                    strlen(input), 0, 0, ov, MAX_SUBSTRINGS);
+
+    if (ret < 0) {
+        SCLogError(SC_ERR_PCRE_MATCH, "value did not cut");
+        goto error;
+    }
+
+    if (ret < 5) {
+        SCLogError(SC_ERR_PCRE_MATCH, "couldn't find stuff we needed (ret %d)", ret);
+        goto error;
+    }
+    
+    pcre_get_substring_list(input, ov, ret, &list);
+    output->forwarded_by = SCCalloc(1, FORWARDED_BY_MAXLEN);
+    strlcpy(output->forwarded_by, list[1], FORWARDED_BY_MAXLEN);
+    
+    output->forwarded_for = SCCalloc(1, FORWARDED_FOR_MAXLEN);
+    strlcpy(output->forwarded_for, list[2], FORWARDED_FOR_MAXLEN);
+
+    output->host = SCCalloc(1, FORWARDED_HOST_MAXLEN);
+    strlcpy(output->host, list[3], FORWARDED_HOST_MAXLEN);
+
+    output->proto = SCCalloc(1, FORWARDED_PROTO_MAXLEN);
+    strlcpy(output->proto, list[4], FORWARDED_PROTO_MAXLEN);
+    
+    pcre_free_substring_list(list);
+    return 1;
+
+error:
+    return 0;
+}
+
 /**
  * \brief Function to return XFF IP if any in the selected transaction. The
  * caller needs to lock the flow.
@@ -254,8 +318,41 @@ void HttpXFFGetCfg(ConfNode *conf, HttpXFFCfg *result)
     }
 }
 
-
 #ifdef UNITTESTS
+
+static int ForwardedHeaderTest01(void) {
+    char input[] = "by=some_proxy;for=1.2.3.4:5678;host=some_host;proto=some_proto";
+    char output[16];
+
+    HttpForwardedCfg *xff_cfg;
+    xff_cfg = SCCalloc(1, sizeof(HttpForwardedCfg));
+    int r = ParseForwardedHeaderString(input, xff_cfg, sizeof(output));
+    if (r != 1) {
+        goto error;
+    }
+
+    if (strcmp(xff_cfg->forwarded_by, "some_proxy") == 1) {
+        goto error;
+    }
+
+    if (strcmp(xff_cfg->forwarded_for, "1.2.3.4:5678") == 1) {
+        goto error;
+    }
+    
+    if (strcmp(xff_cfg->host, "some_host") == 1) {
+        goto error;
+    }
+    
+    if (strcmp(xff_cfg->proto, "some_proto") == 1) {
+        goto error;
+    }
+
+    return 1;
+
+error:
+   return 0;
+}
+
 static int XFFTest01(void) {
     char input[] = "1.2.3.4:5678";
     char output[16];
@@ -360,5 +457,6 @@ void HTPXFFParserRegisterTests(void)
     UtRegisterTest("XFFTest07", XFFTest07);
     UtRegisterTest("XFFTest08", XFFTest08);
     UtRegisterTest("XFFTest09", XFFTest09);
+    UtRegisterTest("ForwardedHeaderTest01", ForwardedHeaderTest01);
 #endif
 }
