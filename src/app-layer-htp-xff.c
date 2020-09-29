@@ -114,29 +114,29 @@ static int ParseXFFString(char *input, char *output, int output_size)
  */
 static int ParseForwardedHeaderString(char *input, HttpForwardedCfg *output, int output_size)
 {
-    static pcre *version_regex;
-    static pcre_extra *version_regex_study;
-    const char *eb;
-    int opts = 0;
-    int eo;
+    static pcre *forwarded_regex;
+    static pcre_extra *forwarded_regex_study;
+    const char * errptr;
+    int erroffset;
 #define MAX_SUBSTRINGS 3 * 6
     int ov[MAX_SUBSTRINGS];
     int ret;
     const char **list;
 
-    version_regex = pcre_compile(FORWARDED_HEADER_REGEX, opts, &eb, &eo, NULL);
-    if (version_regex == NULL) {
-        SCLogError(SC_ERR_PCRE_COMPILE, "pcre compile of \"%s\" failed at offset %" PRId32 ": %s", FORWARDED_HEADER_REGEX, eo, eb);
+    forwarded_regex = pcre_compile(FORWARDED_HEADER_REGEX, 0, &errptr, &erroffset, NULL);
+    if (forwarded_regex == NULL) {
+        SCLogError(SC_ERR_PCRE_COMPILE, "pcre compile of \"%s\" failed at offset %" PRId32 ": %s",
+                   FORWARDED_HEADER_REGEX, erroffset, errptr);
         goto error;
     }
 
-    version_regex_study = pcre_study(version_regex, 0, &eb);
-    if (eb != NULL) {
-        SCLogError(SC_ERR_PCRE_STUDY, "pcre study failed: %s", eb);
+    forwarded_regex_study = pcre_study(forwarded_regex, 0, &errptr);
+    if (errptr != NULL) {
+        SCLogError(SC_ERR_PCRE_STUDY, "pcre study failed: %s", errptr);
         goto error;
     }
 
-    ret = pcre_exec(version_regex, version_regex_study, input,
+    ret = pcre_exec(forwarded_regex, forwarded_regex_study, input,
                     strlen(input), 0, 0, ov, MAX_SUBSTRINGS);
 
     if (ret < 0) {
@@ -321,7 +321,7 @@ void HttpXFFGetCfg(ConfNode *conf, HttpXFFCfg *result)
 
 #ifdef UNITTESTS
 
-static int XFFTestGSA01(void) {
+static int ForwardedHeaderTest01(void) {
     char input[] = "by=some_proxy;for=1.2.3.4:5678;host=some_host;proto=some_proto";
     char output[16];
 
@@ -458,6 +458,6 @@ void HTPXFFParserRegisterTests(void)
     UtRegisterTest("XFFTest07", XFFTest07);
     UtRegisterTest("XFFTest08", XFFTest08);
     UtRegisterTest("XFFTest09", XFFTest09);
-    UtRegisterTest("XFFTestGSA01", XFFTestGSA01);
+    UtRegisterTest("ForwardedHeaderTest01", ForwardedHeaderTest01);
 #endif
 }
