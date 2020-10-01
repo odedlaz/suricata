@@ -136,6 +136,7 @@ typedef enum {
     HTTP_FIELD_TRUE_CLIENT_IP,
     HTTP_FIELD_ORG_SRC_IP,
     HTTP_FIELD_X_BLUECOAT_VIA,
+    HTTP_FIELD_X_MS_FORWARDED,
     HTTP_FIELD_SIZE
 } HttpField;
 
@@ -197,6 +198,7 @@ struct {
     { "true_client_ip", "true-client-ip", LOG_HTTP_REQUEST },
     { "org_src_ip", "org-src-ip", LOG_HTTP_REQUEST },
     { "x_bluecoat_via", "x-bluecoat-via", LOG_HTTP_REQUEST },
+    { "x-ms-forwarded", "x-ms-forwarded", LOG_HTTP_REQUEST },
 };
 
 static void JsonHttpLogJSONBasic(json_t *js, htp_tx_t *tx)
